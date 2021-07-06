@@ -1,7 +1,7 @@
 name: OraxenPlantBlocks
 version: ${project.version}
 main: me.playajames.oraxenplantblocks.OraxenPlantBlocks
-api-version: 1.16
+api-version: 1.17
 depend: [Oraxen, OraxenTransparentBlocks]
 authors: [playajames]
 description: Create custom plants that can even use custom models.

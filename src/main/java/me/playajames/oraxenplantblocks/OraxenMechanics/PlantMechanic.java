@@ -3,7 +3,6 @@ package me.playajames.oraxenplantblocks.OraxenMechanics;
 import io.th0rgal.oraxen.items.OraxenItems;
 import io.th0rgal.oraxen.mechanics.Mechanic;
 import io.th0rgal.oraxen.mechanics.MechanicFactory;
-import io.th0rgal.oraxen.utils.drops.Loot;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -20,7 +19,7 @@ public class PlantMechanic extends Mechanic {
     double growChance;
     HashMap<Integer, String> stages = new HashMap<>();
     ItemStack seed;
-    List<Material> validGrowMediums = new ArrayList<>();
+    List<Material> growMediums = new ArrayList<>();
 
     public PlantMechanic(MechanicFactory mechanicFactory, ConfigurationSection section) {
         super(mechanicFactory, section);
@@ -34,7 +33,7 @@ public class PlantMechanic extends Mechanic {
         if (section.contains("stages"))
             parseStages(section.getConfigurationSection("stages"));
 
-        if (section.contains("valid_growth_mediums"))
+        if (section.contains("growth_mediums"))
             parseValidGrowMediums(section);
     }
 
@@ -51,7 +50,7 @@ public class PlantMechanic extends Mechanic {
     }
 
     public List<Material> getValidGrowMediums() {
-        return validGrowMediums;
+        return growMediums;
     }
 
     private void parseSeed(ConfigurationSection section) {
@@ -67,13 +66,13 @@ public class PlantMechanic extends Mechanic {
     }
 
     private void parseValidGrowMediums(ConfigurationSection section) {
-        if (section.getStringList("valid_growth_mediums").isEmpty()) return;
-        for (String medium : section.getStringList("valid_growth_mediums")) {
+        if (section.getStringList("growth_mediums").isEmpty()) return;
+        for (String medium : section.getStringList("growth_mediums")) {
             if (DEBUG) Bukkit.getLogger().info("Parsing growth medium(" + medium + ") for " + this.getItemID() + ".");
             Material material = Material.getMaterial(medium);
             if (material != null)
                 if (material.isBlock()) {
-                    validGrowMediums.add(material);
+                    growMediums.add(material);
                     continue;
                 }
             Bukkit.getLogger().info(medium + " is not a valid growth medium type for " + this.getItemID() + ". Make sure to use valid vanilla block types.");

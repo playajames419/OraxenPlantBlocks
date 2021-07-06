@@ -1,29 +1,28 @@
 package me.playajames.oraxenplantblocks;
 
-import de.leonhard.storage.Yaml;
 import io.th0rgal.oraxen.items.OraxenItems;
 import io.th0rgal.oraxen.mechanics.MechanicsManager;
 import me.playajames.oraxenplantblocks.OraxenMechanics.PlantMechanic;
-import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
-import org.bukkit.Material;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.entity.ArmorStand;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 
 import static me.playajames.oraxenplantblocks.OraxenPlantBlocks.CONFIG;
-import static me.playajames.oraxenplantblocks.OraxenPlantBlocks.DEBUG;
+import static me.playajames.oraxenplantblocks.OraxenPlantBlocks.CONNECTION;
 
 public class PlantManager {
 
-    private static HashMap<World, HashMap<Chunk, HashMap<UUID, Plant>>> loadedPlants = new HashMap<>();
-    private static String dataFolderPath = OraxenPlantBlocks.getPlugin(OraxenPlantBlocks.class).getDataFolder().getPath() + "/data/";
     private static HashMap<String, String> plants = new HashMap<>();
 
-    public static void register(ItemStack seedItem, String plantId) {
-        plants.put(OraxenItems.getIdByItem(seedItem), plantId);
+    public static boolean isPlant(ArmorStand armorStand) {
+        if (getPlant(armorStand) != null) return true;
+        return false;
     }
 
     public static boolean isSeed(ItemStack item) {
@@ -32,101 +31,120 @@ public class PlantManager {
         return false;
     }
 
-    public static String getPlantId(ItemStack seed) {
-        return plants.get(OraxenItems.getIdByItem(seed));
-    }
-
-    public static boolean isPlant(ArmorStand armorStand) {
-        if (getPlant(armorStand) != null) return true;
-        return false;
-    }
-
     public static boolean addPlant(Plant plant) {
-        Chunk chunk = plant.getBlock().getArmorStand().getLocation().getChunk();
-        if (!isChunkLoaded(chunk)) return false;
-        if (loadedPlants.get(chunk.getWorld()).get(chunk).containsKey(plant.getBlock().getArmorStand().getUniqueId())) return false;
-        loadedPlants.get(chunk.getWorld()).get(chunk).put(plant.getBlock().getArmorStand().getUniqueId(), plant);
+        UUID world = plant.getBlock().getArmorStand().getLocation().getWorld().getUID();
+        long chunk = plant.getBlock().getArmorStand().getLocation().getChunk().getChunkKey();
+        UUID uuid = plant.getBlock().getArmorStand().getUniqueId();
+        try {
+            Statement statement = CONNECTION.createStatement();
+            statement.executeUpdate("INSERT INTO 'plants' (plant_id,world,chunk,uuid,stage) VALUES('" + plant.getPlantId() + "','" + world + "','" + chunk + "','" + uuid + "','" + plant.getStage() + "')");
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+            return false;
+        }
         return true;
     }
 
     public static boolean removePlant(Plant plant) {
-        Chunk chunk = plant.getBlock().getArmorStand().getLocation().getChunk();
-        if (!isChunkLoaded(chunk)) return false;
-        if (!loadedPlants.get(chunk.getWorld()).get(chunk).containsKey(plant.getBlock().getArmorStand().getUniqueId())) return false;
-        loadedPlants.get(chunk.getWorld()).get(chunk).remove(plant.getBlock().getArmorStand().getUniqueId());
+        UUID world = plant.getBlock().getArmorStand().getLocation().getWorld().getUID();
+        long chunk = plant.getBlock().getArmorStand().getLocation().getChunk().getChunkKey();
+        UUID uuid = plant.getBlock().getArmorStand().getUniqueId();
+        try {
+            Statement statement = CONNECTION.createStatement();
+            statement.executeUpdate("DELETE FROM 'plants' WHERE world = '" + world + "' AND chunk = '" + chunk + "' AND uuid = '" + uuid + "'");
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+            return false;
+        }
         return true;
     }
 
-    private static boolean worldMapExists(World world) {
-        if (loadedPlants.isEmpty()) return false;
-        if (loadedPlants.containsKey(world)) return true;
-        return false;
+    public static String getPlantId(ItemStack seed) {
+        return plants.get(OraxenItems.getIdByItem(seed));
     }
 
-    private static void generateWorldMap(World world) {
-        loadedPlants.put(world, new HashMap<>());
-    }
-
-    private static void removeWorldMapIfEmpty(World world) {
-        if (loadedPlants.get(world).isEmpty())
-            loadedPlants.remove(world);
-    }
-
-    private static boolean isChunkLoaded(Chunk chunk) {
-        if (!worldMapExists(chunk.getWorld())) return false;
-        if (loadedPlants.get(chunk.getWorld()).containsKey(chunk)) return true;
-        return false;
-    }
-
-    public static boolean loadChunk(Chunk chunk) {
-        Yaml storage = new Yaml(String.valueOf(chunk.getChunkKey()), dataFolderPath + chunk.getWorld().getUID());
-        HashMap<UUID, Plant> plants = parseChunkStorageFile(chunk, storage);
-        if (!worldMapExists(chunk.getWorld())) generateWorldMap(chunk.getWorld());
-        if (isChunkLoaded(chunk)) return true;
-        loadedPlants.get(chunk.getWorld()).put(chunk, plants);
-        return false;
-    }
-
-    public static boolean unloadChunk(Chunk chunk) {
-        if (!isChunkLoaded(chunk)) return true;
-        loadedPlants.get(chunk.getWorld()).remove(chunk);
-        removeWorldMapIfEmpty(chunk.getWorld());
-        return false;
+    public static String getPlantId(ArmorStand armorStand) {
+        return plants.get(OraxenItems.getIdByItem(armorStand.getItem(EquipmentSlot.HEAD)));
     }
 
     public static Plant getPlant(ArmorStand armorStand) {
-        List<Plant> plants = getPlants(armorStand.getChunk());
-        if (plants == null) return null;
-        for (Plant plant : plants)
-            if (plant.getBlock().getArmorStand().getUniqueId().equals(armorStand.getUniqueId()))
-                return plant;
-        return null;
-    }
-
-    public static List<Plant> getPlants(World world) {
-        List<Plant> plantsList = new ArrayList<Plant>();
-        if (loadedPlants.isEmpty()) return null;
-        for (HashMap<UUID, Plant> chunkBlockMap : loadedPlants.get(world).values())
-            for (Plant plant : chunkBlockMap.values())
-                plantsList.add(plant);
-        return plantsList;
-    }
-
-    public static List<Plant> getPlants(Chunk chunk) {
-        if (!isChunkLoaded(chunk)) return null;
-        List<Plant> plantsList = new ArrayList<>();
-        for (Plant plant : loadedPlants.get(chunk.getWorld()).get(chunk).values())
-            plantsList.add(plant);
-        return plantsList;
+        String world = armorStand.getLocation().getWorld().getUID().toString();
+        String chunk = String.valueOf(armorStand.getLocation().getChunk().getChunkKey());
+        String uuid = armorStand.getUniqueId().toString();
+        Plant plant = null;
+        try {
+            Statement statement = CONNECTION.createStatement();
+            ResultSet result = statement.executeQuery("SELECT * FROM plants WHERE world = '" + world + "' AND chunk = '" + chunk + "' AND uuid = '" + uuid + "'");
+            if (result.next()) {
+                plant = new Plant(
+                        result.getString("plant_id"),
+                        result.getString("world"),
+                        result.getString("chunk"),
+                        result.getString("uuid"),
+                        result.getInt("stage"));
+            }
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+        return plant;
     }
 
     public static List<Plant> getPlants() {
         List<Plant> plants = new ArrayList<>();
-        for (HashMap<Chunk, HashMap<UUID, Plant>> world : loadedPlants.values())
-            for (HashMap<UUID, Plant> chunk : world.values())
-                for (Plant plant : chunk.values())
-                    plants.add(plant);
+        try {
+            Statement statement = CONNECTION.createStatement();
+            ResultSet result = statement.executeQuery("SELECT * FROM 'plants'");
+            while (result.next())
+                plants.add(new Plant(
+                        result.getString("plant_id"),
+                        result.getString("world"),
+                        result.getString("chunk"),
+                        result.getString("uuid"),
+                        result.getInt("stage")));
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
         return plants;
+    }
+
+    public static List<Plant> getPlants(World world) {
+        List<Plant> plants = new ArrayList<>();
+        try {
+            Statement statement = CONNECTION.createStatement();
+            ResultSet result = statement.executeQuery("SELECT * FROM 'plants' WHERE world = '" + world.getUID() + "'");
+            while (result.next())
+                plants.add(new Plant(
+                        result.getString("plant_id"),
+                        result.getString("world"),
+                        result.getString("chunk"),
+                        result.getString("uuid"),
+                        result.getInt("stage")));
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+        return plants;
+    }
+
+    public static List<Plant> getPlants(Chunk chunk) {
+        List<Plant> plants = new ArrayList<>();
+        try {
+            Statement statement = CONNECTION.createStatement();
+            ResultSet result = statement.executeQuery("SELECT * FROM 'plants' WHERE world = '" + chunk.getWorld().getUID() + "' AND chunk = '" + chunk.getChunkKey() + "'");
+            while (result.next())
+                plants.add(new Plant(
+                        result.getString("plant_id"),
+                        result.getString("world"),
+                        result.getString("chunk"),
+                        result.getString("uuid"),
+                        result.getInt("stage")));
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+        return plants;
+    }
+
+    public static void register(ItemStack seedItem, String plantId) {
+        plants.put(OraxenItems.getIdByItem(seedItem), plantId);
     }
 
     public static boolean canPlant(String plantId, Material medium) {
@@ -135,67 +153,21 @@ public class PlantManager {
         return false;
     }
 
-    public static void saveWorld(World world) {
-        if (!worldMapExists(world)) return;
-        for (Chunk chunk : loadedPlants.get(world).keySet())
-            saveChunk(chunk);
-    }
-
-    public static void saveChunk(Chunk chunk) {
-        if (!isChunkLoaded(chunk)) return;
-        Yaml storage = new Yaml(String.valueOf(chunk.getChunkKey()), dataFolderPath + chunk.getWorld().getUID());
-        Collection<Plant> plants = loadedPlants.get(chunk.getWorld()).get(chunk).values();
-        Set<String> activeStoredBlocks = storage.keySet();
-        for (Plant plant : plants) {
-            if (activeStoredBlocks.contains(plant.getBlock().getArmorStand().getUniqueId().toString())) {
-                activeStoredBlocks.remove(plant.getBlock().getArmorStand().getUniqueId().toString());
-                continue;
-            }
-            storage.set(plant.serialize(), null);
-        }
-        if (activeStoredBlocks.isEmpty()) return;
-        for (String key : activeStoredBlocks)
-            storage.remove(key);
-    }
-
-    public static void saveAll() {
-        if (DEBUG) Bukkit.getLogger().info("Saving all plant data...");
-        for (World world : loadedPlants.keySet())
-            saveWorld(world);
-        if (DEBUG) Bukkit.getLogger().info("Plant data saved successfully.");
-    }
-
-    public static boolean destroyChunkStorageFile(long chunkId) {
-        return false;
-    }
-
-    private static HashMap<UUID, Plant> parseChunkStorageFile(Chunk chunk, Yaml storage) {
-
-        HashMap<UUID, Plant> plants = new HashMap<>();
-
-        Set<String> sections = storage.keySet();
-
-        for (String section : sections) {
-            Plant plant = new Plant(section, chunk);
-            if (plant.getBlock().getArmorStand() == null) continue;
-            plants.put(plant.getBlock().getArmorStand().getUniqueId(), plant);
-        }
-
-        return plants;
-    }
-
-    public static void startSaveScheduler() {
+    public static boolean update(Plant plant) {
         try {
-            Bukkit.getScheduler().runTaskTimer(OraxenPlantBlocks.getPlugin(OraxenPlantBlocks.class), () -> PlantManager.saveAll(), 20L * CONFIG.getInt("save_interval"), 20L * CONFIG.getInt("save_interval"));
-        } catch (Exception e) {
-            e.printStackTrace();
+            Statement statment = CONNECTION.createStatement();
+            Location location = plant.getBlock().getArmorStand().getLocation();
+            statment.executeUpdate("UPDATE plants SET stage = " + plant.getStage() + " WHERE plant_id = '" + plant.getPlantId() + "' AND world = '" + location.getWorld().getUID() + "' AND chunk = '" + location.getChunk().getChunkKey() + "' AND uuid = '" + plant.getBlock().getArmorStand().getUniqueId() + "'");
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
         }
+        return false;
     }
 
     public static void startTickScheduler() {
         try {
             Bukkit.getScheduler().runTaskTimer(OraxenPlantBlocks.getPlugin(OraxenPlantBlocks.class), () -> {
-                if (DEBUG) Bukkit.getLogger().info("Attempting to tick " + getPlants().size() + " plants.");
+                if (OraxenPlantBlocks.DEBUG) Bukkit.getLogger().info("Attempting to tick " + getPlants().size() + " plants.");
                 for (Plant plant : getPlants()) {
                     plant.tick();
                 }
@@ -204,5 +176,4 @@ public class PlantManager {
             e.printStackTrace();
         }
     }
-
 }

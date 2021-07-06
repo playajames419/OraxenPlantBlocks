@@ -1,17 +1,17 @@
 package me.playajames.oraxenplantblocks;
 
-import io.th0rgal.oraxen.OraxenPlugin;
 import io.th0rgal.oraxen.items.OraxenItems;
 import io.th0rgal.oraxen.mechanics.MechanicsManager;
 import me.playajames.oraxenplantblocks.OraxenMechanics.PlantMechanic;
-import me.playajames.oraxentransparentblocks.OraxenMechanics.TransparentBlockMechanic;
 import me.playajames.oraxentransparentblocks.OraxenTransparentBlock;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Random;
+import java.util.UUID;
 
 import static me.playajames.oraxenplantblocks.OraxenPlantBlocks.DEBUG;
 
@@ -29,11 +29,10 @@ public class Plant {
         updateBlock();
     }
 
-    public Plant(String serializedPlant, Chunk chunk) {
-        String[] parts = serializedPlant.split(",");
-        this.plantId = parts[0];
-        this.stage = Integer.valueOf(parts[1]);
-        this.block = new OraxenTransparentBlock(parts[2], chunk);
+    public Plant(String plantId, String worldId, String chunkId, String uuidString, int stage) {
+        this.plantId = plantId;
+        this.block = new OraxenTransparentBlock(worldId, chunkId, uuidString);
+        this.stage = stage;
     }
 
     public String getPlantId() {
@@ -79,6 +78,11 @@ public class Plant {
         if (DEBUG) Bukkit.getLogger().info("Plant stage update from " + this.stage + " to " + stage + ".");
         this.stage = stage;
         updateBlock();
+        PlantManager.update(this);
+    }
+
+    public int getStage() {
+        return stage;
     }
 
     private void updateBlock() {

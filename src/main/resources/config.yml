@@ -1,3 +1,2 @@
-save_interval: 600 #seconds all plant data will save
 tick_interval: 5   #seconds to tick each plant(every tick your plant will try to grow against your grow chance in your items config)
-debug: true
+debug: false
