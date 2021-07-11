@@ -13,7 +13,7 @@ You must have [Oraxen](https://github.com/oraxen/Oraxen), [OraxenTransparentBloc
 
 ### Installing
 
-Place the plugin jar file in your servers plugins directory.
+Place the [plugin jar](https://github.com/playajames419/OraxenPlantBlocks/releases/latest) file in your servers plugins directory.
 
 ### Adding Transparent Block Mechanic to Oraxen
 
